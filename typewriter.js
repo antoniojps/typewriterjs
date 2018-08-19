@@ -19,20 +19,20 @@
 	    var vendors = ['ms', 'moz', 'webkit', 'o'];
 	    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
 	        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
-	        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame'] 
+	        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame']
 	                                   || window[vendors[x]+'CancelRequestAnimationFrame'];
 	    }
-	 
+
 	    if (!window.requestAnimationFrame)
 	        window.requestAnimationFrame = function(callback, element) {
 	            var currTime = new Date().getTime();
 	            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
-	            var id = window.setTimeout(function() { callback(currTime + timeToCall); }, 
+	            var id = window.setTimeout(function() { callback(currTime + timeToCall); },
 	              timeToCall);
 	            lastTime = currTime + timeToCall;
 	            return id;
 	        };
-	 
+
 	    if (!window.cancelAnimationFrame)
 	        window.cancelAnimationFrame = function(id) {
 	            clearTimeout(id);
@@ -70,6 +70,8 @@
 		// 	return console.error('Please enter an array of strings for the typewriter animation to work.');
 		// }
 
+		options = options || {};
+
 		if(typeof options !== 'object') {
 			return console.error('Typewriter only accepts the options as an object.');
 		}
@@ -88,7 +90,8 @@
 			wrapperClassName: 'typewriter-wrapper',
 			loop: false,
 			autoStart: false,
-			devMode: false
+			devMode: false,
+			onComplete: null,
 		};
 
 		this.options = this._setupOptions(options);
@@ -122,33 +125,35 @@
 		return this;
 	};
 
-	TypewriterPrototype.typeString = function(string) {
-		if(!string || typeof string != 'string') {
-			return console.error('Please enter a string as the paramater.');
+	TypewriterPrototype.typeString = function(string, callback) {
+		if (!string || typeof string != 'string') {
+			var message = 'Please enter a string as the paramater'
+			callback(Error(message))
+			return console.error(message);
 		}
 
 		var string_chars = this._getCharacters(string);
 
-		this._addToEventQue([this._typeCharacters, [string_chars]]);
+		this._addToEventQue([this._typeCharacters, [[string_chars], callback]]);
 		return this;
 	};
 
-	TypewriterPrototype.deleteAll = function() {
-		this._addToEventQue([this._deleteChars, ['all']]);
+	TypewriterPrototype.deleteAll = function(callback) {
+		this._addToEventQue([this._deleteChars, ['all', callback]]);
 		return this;
 	};
 
-	TypewriterPrototype.deleteChars = function(amount) {
-		this._addToEventQue([this._deleteChars, [amount]]);
+	TypewriterPrototype.deleteChars = function(amount, callback) {
+		this._addToEventQue([this._deleteChars, [amount, callback]]);
 		return this;
 	};
 
-	TypewriterPrototype.pauseFor = function(ms) {
-		this._addToEventQue([this._pauseFor, [ms]]);
+	TypewriterPrototype.pauseFor = function (ms, callback) {
+		this._addToEventQue([this._pauseFor, [ms, callback]]);
 		return this;
 	};
 
-	TypewriterPrototype.typeOutAllStrings = function() {		
+	TypewriterPrototype.typeOutAllStrings = function() {
 		var characters_array = this._getStringsAsCharsArray();
 
 		if(characters_array.length === 1) {
@@ -231,21 +236,20 @@
 		}
 	};
 
-	TypewriterPrototype._deleteChars = function(amount) {
-
-
+	TypewriterPrototype._deleteChars = function(amount, callback) {
 		if(amount) {
 			this._settings.charAmountToDelete = amount;
 		}
-		this._deletingCharIdsAnimation = window.requestAnimationFrame(this._deletingCharAnimationFrame.bind(this));
+		this._deletingCharIdsAnimation = window.requestAnimationFrame(this._deletingCharAnimationFrame.bind(this, callback));
 		return this;
 	};
 
-	TypewriterPrototype._pauseFor = function(ms) {
+	TypewriterPrototype._pauseFor = function(ms, callback) {
 		var self = this;
 		self._settings.eventRunning = true;
 		setTimeout(function() {
 			self._resetEventLoop('pauseFor');
+			if (typeof callback === 'function') callback(null);
 		}, ms);
 	};
 
@@ -259,15 +263,15 @@
 
 	};
 
-	TypewriterPrototype._deletingCharAnimationFrame = function() {
+	TypewriterPrototype._deletingCharAnimationFrame = function(callback) {
 		var self = this;
 		var delete_speed = this.options.deleteSpeed;
 		var typewriter_wrapper_class_name = self.options.wrapperClassName;
 		var current_typed_char_ids = self._settings.currentTypedCharacters;
 		var char_amount_to_delete = self._settings.charAmountToDelete;
-
 		if(!self._settings.charAmountToDelete || self._settings.charAmountToDelete === 0 || current_typed_char_ids === 0) {
 			self._resetEventLoop('deletingCharAnimationFrame');
+			if(typeof callback === 'function') callback(null)
 			return true;
 		}
 
@@ -278,7 +282,7 @@
 		if(char_amount_to_delete == 'all') {
 			char_amount_to_delete = current_typed_char_ids.length;
 			self._settings.charAmountToDelete = char_amount_to_delete;
-		} 
+		}
 
 		setTimeout(function() {
 			if(self._settings.charAmountToDelete) {
@@ -301,7 +305,7 @@
 
 			}
 
-			self._deletingCharIdsAnimation = window.requestAnimationFrame(self._deletingCharAnimationFrame.bind(self));
+			self._deletingCharIdsAnimation = window.requestAnimationFrame(self._deletingCharAnimationFrame.bind(self, callback));
 
 		}, delete_speed);
 	};
@@ -356,7 +360,9 @@
 						this._settings.eventRunning = true;
 						this._settings.calledEvents.push(first_event);
 						this._settings.eventQue.splice(0, 1);
-						first_event[0].call(this, first_event[1]);
+						// has callback
+						if(first_event[1].length > 1) first_event[0].apply(this, first_event[1]);
+						else first_event[0].call(this, first_event[1]);
 						if(this.options.devMode) {
 							console.log('Event started.');
 						}
@@ -370,20 +376,22 @@
 			var self = this;
 			self._stopEventLoop();
 			setTimeout(function() {
-				if(self.options.loop) {
-					self.eventLoopRerun++;
+				if (!self.options.loop) {
+					if(typeof self.options.onComplete === 'function') self.options.onComplete(null);
+					return;
+				}
+				self.eventLoopRerun++;
+				if(self.options.devMode) {
+					console.log('Before Loop State', self._settings);
+				}
+				if(self.eventLoopRerun > 4) {
+					console.error('Maximum amount of loop retries reached.');
+					self._stopEventLoop();
+				} else {
 					if(self.options.devMode) {
-						console.log('Before Loop State', self._settings);
+						console.log('Looping events.');
 					}
-					if(self.eventLoopRerun > 4) {
-						console.error('Maximum amount of loop retries reached.');
-						self._stopEventLoop();
-					} else {
-						if(self.options.devMode) {
-							console.log('Looping events.');
-						}
-						self._rerunCalledEvents();
-					}
+					self._rerunCalledEvents();
 				}
 			}, 1000);
 			return;
@@ -415,20 +423,25 @@
 		this.el.appendChild(typewriter_wrapper);
 	};
 
-	TypewriterPrototype._typeCharacters = function(characters_array) {
+	TypewriterPrototype._typeCharacters = function(characters_array, callback) {
+		var args = [characters_array.length];
+		if (typeof callback === 'function') args = [characters_array.length, callback];
 		this._settings.stringToTypeHTMLArray = this._convertCharsToHTML(characters_array);
-		this._typingAnimation = window.requestAnimationFrame(this._typingAnimationFrame.bind(this, characters_array.length));
+		this._typingAnimation = window.requestAnimationFrame(this._typingAnimationFrame.bind(this, args));
 		return this;
 	};
 
-	TypewriterPrototype._typingAnimationFrame = function(total_items) {
+	TypewriterPrototype._typingAnimationFrame = function (args) {
 		var self = this;
 		var typing_speed = this.options.typingSpeed;
 		var typewriter_wrapper_class_name = self.options.wrapperClassName;
+		var total_items = args[0];
+		var callback = args[1];
 
 		if(self._settings.stringToTypeHTMLArray.length == 0) {
 			window.cancelAnimationFrame(self._typingAnimation);
 			this._resetEventLoop('typingAnimationFrame');
+			if(typeof callback === 'function') callback(null);
 			return true;
 		}
 
@@ -442,7 +455,7 @@
 			self.el.querySelector('.' + typewriter_wrapper_class_name).appendChild(item_to_type.el);
 			self._settings.currentTypedCharacters.push(item_to_type.id);
 			self._settings.stringToTypeHTMLArray.splice(0, 1);
-			self._typingAnimation = window.requestAnimationFrame(self._typingAnimationFrame.bind(self, total_items));
+			self._typingAnimation = window.requestAnimationFrame(self._typingAnimationFrame.bind(self, [total_items, callback]));
 			if(self.options.devMode) {
 				console.log('Typed', item_to_type);
 			}
@@ -533,7 +546,7 @@
 	TypewriterPrototype._startCursorAnimation = function() {
 		var cursor = this.options.cursor;
 		var cursor_class_name = this.options.cursorClassName;
-		
+
 		var cursor_element = document.createElement('span');
 		cursor_element.className = cursor_class_name;
 		cursor_element.innerHTML = cursor;
@@ -581,7 +594,7 @@
 			this._settings.usedIDs.push(temp_id);
 			return temp_id;
 		}
-		return this._generateUniqueID.call(this); 
+		return this._generateUniqueID.call(this);
 	};
 
 
