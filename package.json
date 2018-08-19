@@ -1,0 +1,24 @@
+{
+  "name": "typewriterjs",
+  "version": "1.0.0",
+  "description": "A simple yet powerful native javascript plugin for a cool typewriter effect, developed by Tameem Safi.",
+  "main": "typewriter.js",
+  "dependencies": {},
+  "devDependencies": {
+    "webpack": "^4.16.5",
+    "webpack-cli": "^3.1.0"
+  },
+  "scripts": {
+    "build": "webpack"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/antoniojps/typewriterjs.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/antoniojps/typewriterjs/issues"
+  },
+  "homepage": "https://github.com/antoniojps/typewriterjs#readme"
+}
